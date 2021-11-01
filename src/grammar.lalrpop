@@ -122,7 +122,7 @@ ILimit: isize = {
     <sign: (AddOp)?> <i: Iconst> => (i * i64::from(Into::<bool>::into(sign.unwrap_or(SumOp::Add)))) as isize,
     <sign: (AddOp)?> <id: Ident> => program.constants.get(&id[..])
                                                .unwrap()
-                                               .as_number()
+                                               .as_number(program)
                                                .unwrap() as isize *
                                                isize::from(Into::<bool>::into(sign.unwrap_or(SumOp::Add))),
     Cconst => <> as isize,

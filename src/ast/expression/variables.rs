@@ -1,4 +1,5 @@
 use crate::ast::expression::Expression;
+use crate::ast::program::Program;
 use crate::ast::types::Type;
 
 #[derive(Debug)]
@@ -9,11 +10,11 @@ pub enum VarRef {
 }
 
 impl Expression for VarRef {
-    fn get_type(&self) -> Type {
+    fn get_type(&self, program: &Program) -> Type {
         todo!()
     }
 
-    fn as_number(&self) -> Result<i64, &dyn Expression> {
+    fn as_number(&self, program: &Program) -> Result<i64, /*unfoldable*/ &dyn Expression> {
         Err(self)
     }
 }
