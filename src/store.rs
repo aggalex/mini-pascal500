@@ -1,9 +1,9 @@
 use lazy_static::lazy_static;
-use std::cell::RefCell;
+
 use std::collections::HashMap;
-use std::hash::Hash;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
-use crate::ast::expression::Expression;
+
+use std::sync::{Arc, RwLock};
+
 use crate::ast::types::Type;
 
 pub struct Store<'a, Content> {

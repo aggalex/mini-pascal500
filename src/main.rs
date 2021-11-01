@@ -5,7 +5,7 @@ extern crate colored;
 
 use std::env::args;
 use std::fs::File;
-use std::io::{Read, stderr};
+use std::io::{Read};
 use lalrpop_util::{lalrpop_mod, ParseError};
 use crate::lexer::{Lexer, Token};
 use crate::ast::program::Program;

@@ -10,11 +10,11 @@ pub enum VarRef {
 }
 
 impl Expression for VarRef {
-    fn get_type(&self, program: &Program) -> Type {
+    fn get_type(&self, _program: &Program) -> Type {
         todo!()
     }
 
-    fn as_number(&self, program: &Program) -> Result<i64, /*unfoldable*/ &dyn Expression> {
+    fn as_number(&self, _program: &Program) -> Result<i64, /*unfoldable*/ &dyn Expression> {
         Err(self)
     }
 }

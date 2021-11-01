@@ -1,9 +1,9 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::num::{IntErrorKind, ParseIntError};
+use std::num::{ParseIntError};
 use std::str::FromStr;
-use lazy_static::lazy_static;
-use regex::Regex;
+
+
 
 pub trait FromStrRadix: Sized {
     type Error: Error;

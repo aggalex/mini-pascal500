@@ -14,6 +14,7 @@ pub enum Error {
 
 pub trait Expression: Debug + Send + Sync {
     fn get_type(&self, program: &Program) -> Type;
+    #[allow(unused_variables)]
     fn validate(&self, program: &Program) -> Vec<Error> {
         vec![]
     }
@@ -46,41 +47,41 @@ impl Expression for Box<dyn Expression> {
 }
 
 impl Expression for i64 {
-    fn get_type(&self, program: &Program) -> Type {
+    fn get_type(&self, _program: &Program) -> Type {
         Type::Integer
     }
 
-    fn as_number(&self, program: &Program) -> Result<i64, /*unfoldable*/ &dyn Expression> {
+    fn as_number(&self, _program: &Program) -> Result<i64, /*unfoldable*/ &dyn Expression> {
         Ok(*self)
     }
 }
 
 impl Expression for f64 {
-    fn get_type(&self, program: &Program) -> Type {
+    fn get_type(&self, _program: &Program) -> Type {
         Type::Real
     }
 
-    fn as_number(&self, program: &Program) -> Result<i64, /*unfoldable*/ &dyn Expression> {
+    fn as_number(&self, _program: &Program) -> Result<i64, /*unfoldable*/ &dyn Expression> {
         Err(self)
     }
 }
 
 impl Expression for char {
-    fn get_type(&self, program: &Program) -> Type {
+    fn get_type(&self, _program: &Program) -> Type {
         Type::Char
     }
 
-    fn as_number(&self, program: &Program) -> Result<i64, /*unfoldable*/ &dyn Expression> {
+    fn as_number(&self, _program: &Program) -> Result<i64, /*unfoldable*/ &dyn Expression> {
         Ok(*self as i64)
     }
 }
 
 impl Expression for bool {
-    fn get_type(&self, program: &Program) -> Type {
+    fn get_type(&self, _program: &Program) -> Type {
         Type::Boolean
     }
 
-    fn as_number(&self, program: &Program) -> Result<i64, /*unfoldable*/ &dyn Expression> {
+    fn as_number(&self, _program: &Program) -> Result<i64, /*unfoldable*/ &dyn Expression> {
         Ok(*self as i64)
     }
 }
