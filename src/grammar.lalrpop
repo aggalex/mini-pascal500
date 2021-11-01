@@ -1,0 +1,243 @@
+use crate::ast::types::*;
+use crate::ast::expression::{
+    *,
+    variables::*,
+    operators::*
+};
+use crate::ast::program::*;
+use crate::store::*;
+use crate::utils::*;
+use crate::lexer::*;
+use crate::error::*;
+use crate::error::parse_error::ParsingError;
+use crate::token;
+use std::collections::HashMap;
+
+grammar(program: &mut Program);
+
+extern {
+    type Location = usize;
+    type Error = ParsingError<Token>;
+
+    enum Token {
+        "program" => Token::Program,
+        "type" => Token::Type,
+        "var" => Token::Var,
+        "array" => Token::Array,
+        "set" => Token::Set,
+        "record" => Token::Record,
+        "of" => Token::Of,
+        "in" => Token::In,
+        "end" => Token::End,
+        "(" => Token::LParen,
+        ")" => Token::RParen,
+        "[" => Token::LBrack,
+        "]" => Token::RBrack,
+        ";" => Token::Semi,
+        ":" => Token::Colon,
+        "," => Token::Comma,
+        ".." => Token::Spread,
+        "." => Token::Dot,
+        "=" => Token::Eq,
+        "<>" => Token::Neq,
+        ">" => Token::Bg,
+        "<" => Token::Lt,
+        ">=" => Token::Bge,
+        "<=" => Token::Lte,
+        "!" => Token::Not,
+        "+" => Token::Plus,
+        "-" => Token::Minus,
+        "*" => Token::Mul,
+        "/" => Token::RDiv,
+        "div" => Token::Div,
+        "mod" => Token::Mod,
+        "and" => Token::And,
+        "or" => Token::Or,
+        "true/false" => Token::Bool(_),
+        "a/b/c" => Token::Char(_),
+        "123.123" => Token::Real(_),
+        "123" => Token::Integer(_),
+        "abc" => Token::Ident(_)
+    }
+}
+
+SepList<Rule, Sep>: Vec<Rule> = {
+    <mut list: SepList<Rule, Sep>> <s: Sep> <r: Rule> => {
+        list.push(r);
+        list
+    },
+    <Rule> => vec![<>]
+}
+
+pub Program: () = <Header> <Declarations>;
+
+Header: () = "program" <id: Ident> ";" => program.name = id;
+
+Declarations: () =
+    (SepList<ConstDef, ";"> ";")?
+    (SepList<TypeDef, ";"> ";")?
+    ("var" SepList<Field, ";"> ";")?;
+
+ConstDef: () = <id: Ident> "=" <expr: Expression> => { program.constants.insert(id, expr); };
+
+TypeDef: () = "type" <id: Ident> "=" <t: Type> => { program.types.insert(id, t); };
+
+Type: Type = {
+    "array" "[" <d: SepList<DimOf<ULimit>, ",">> "]" "of" <typename: Ident> => Type::ArrayOf(d, Box::new(program.types
+        .get(&typename[..])
+        .unwrap()
+        .clone())),
+    "set" "of" <typename: Ident> => Type::SetOf(Box::new(program.types.get(&typename[..])
+                                                               .unwrap()
+                                                               .clone())),
+    "record" <f: SepList<Field, ";">> "end" => {
+        Type::Record(f.into_iter()
+                      .map(|(name, typename)| (name, program.types.get(&typename[..])
+                                                           .unwrap()
+                                                           .clone()))
+                      .collect::<HashMap<String, Type>>())
+    },
+    "(" <e: SepList<Ident, ",">> ")" => Type::Enum(e),
+    <d: Dim> => Type::Range(d),
+    <Ident> => program.types.get(&<>[..])
+                     .unwrap()
+                     .clone()
+}
+
+Variable: VarRef = {
+    Ident => VarRef::Immediate(<>),
+    <v: Variable> "." <id: Ident> => VarRef::Field(Box::new(v), id),
+    <v: Variable> "[" <e: SepList<Expression, ",">> "]" => VarRef::Index(Box::new(v), e)
+}
+
+Field: (String, String) = {
+    <id: Ident> ":" <typename: Ident> => (id, typename)
+}
+
+Dim = DimOf<ILimit>;
+
+DimOf<Limit>: std::ops::Range<Limit> = <l: Limit> ".." <r: Limit> => l..r;
+
+ILimit: isize = {
+    <sign: (AddOp)?> <i: Iconst> => (i * i64::from(Into::<bool>::into(sign.unwrap_or(SumOp::Add)))) as isize,
+    <sign: (AddOp)?> <id: Ident> => program.constants.get(&id[..])
+                                               .unwrap()
+                                               .as_number()
+                                               .unwrap() as isize *
+                                               isize::from(Into::<bool>::into(sign.unwrap_or(SumOp::Add))),
+    Cconst => <> as isize,
+    Bconst => <> as isize
+}
+
+ULimit: usize = ILimit =>? {
+    if <> < 0 {
+        panic!("ERRROR");
+    } else {
+        Ok(<> as usize)
+    }
+};
+
+Expression: Box<dyn Expression> = InExpr<LogicExpr<CompExpr<SumExpr<FactorExpr<TopExpr>>>>>;
+
+InExpr<Next>: Box<dyn Expression> = {
+    <l: Next> "in" <r: Next> => Box::new(In{
+        sample: l,
+        set: r
+    }),
+    Next
+};
+
+CompExpr<Next>: Box<dyn Expression> = {
+    <prev: CompExpr<Next>> <c: Comp> <n: Next> => Box::new(Comparison {
+        left: prev,
+        op: c,
+        right: n
+    }),
+    Next
+}
+
+Comp: CompOp = {
+    ">" => CompOp::Bg,
+    ">=" => CompOp::Bge,
+    "<" => CompOp::Lt,
+    "<=" => CompOp::Lte,
+    "<>" => CompOp::Neq,
+    "=" => CompOp::Eq
+}
+
+SumExpr<Next>: Box<dyn Expression> = {
+    <prev: SumExpr<Next>> <op: AddOp> <n: Next> => Box::new(Sum {
+        left: prev,
+        right: n,
+        op
+    }),
+    Next
+}
+
+AddOp: SumOp = {
+    "+" => SumOp::Add,
+    "-" => SumOp::Sub
+}
+
+FactorExpr<Next>: Box<dyn Expression> = {
+    <prev: FactorExpr<Next>> <op: MulOp> <n: Next> => Box::new(Product {
+        left: prev,
+        right: n,
+        op
+    }),
+    Next
+}
+
+MulOp: ProdOp = {
+    "*" => ProdOp::Mul,
+    "/" => ProdOp::RDiv,
+    "div" => ProdOp::Div,
+    "mod" => ProdOp::Mod
+}
+
+LogicOp: LogicOp = {
+    "and" => LogicOp::And,
+    "or" => LogicOp::Or
+}
+
+LogicExpr<Next>: Box<dyn Expression> = {
+    <prev: LogicExpr<Next>> <op: LogicOp> <n: Next> => Box::new(Logic {
+        left: prev,
+        right: n,
+        op
+    }),
+    Next
+}
+
+NotExpr<Next>: Box<dyn Expression> = {
+    "!" <op: NotExpr<Next>> => Box::new(Not(op)),
+    Next
+}
+
+TopExpr: Box<dyn Expression> = {
+    Variable => Box::new(<>),
+    Iconst => Box::new(<>),
+    Rconst => Box::new(<>),
+    Cconst => Box::new(<>),
+    Bconst => Box::new(<>),
+    SetExpr => Box::new(<>),
+    CallExpr => Box::new(<>),
+    "(" <expr: Expression> ")" => Box::new(expr)
+}
+
+SetExpr: Vec<Box<dyn Expression>> = "[" <out: SepList<Expression, ",">> "]" => out;
+
+CallExpr: Call = <id: Ident> "(" <args: SepList<Expression, ",">> ")" => Call {
+    name: id,
+    args
+};
+
+Ident: String = "abc" => token!(<> => Token::Ident);
+
+Iconst: i64 = "123" => token!(<> => Token::Integer);
+
+Rconst: f64 = "123.123" => token!(<> => Token::Real);
+
+Bconst: bool = "true/false" => token!(<> => Token::Bool);
+
+Cconst: char = "a/b/c" => token!(<> => Token::Char);
