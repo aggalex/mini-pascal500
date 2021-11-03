@@ -127,6 +127,7 @@ pub enum Token {
     Ident(String),
 
     #[error]
+    #[regex(r"[ \t\f\n]+", logos::skip)]
     Error
 }
 

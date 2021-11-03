@@ -1,5 +1,7 @@
 // pub mod warning;
 pub mod parse_error;
+pub mod semantic_error;
+pub mod io_error;
 // pub mod semantic_error;
 // pub mod type_error;
 // pub mod class_error;
@@ -159,6 +161,12 @@ pub trait Throwable {
     fn title(&self) -> String;
     fn description(&self) -> String;
     fn notes(&self) -> Vec<String>;
+
+    fn static_print(&self) -> String {
+        format!("{} {}",
+                self.title(),
+                self.description())
+    }
 
     fn format(&self, f: &mut Formatter<'_>, positioner: &PositionBuilder) -> std::fmt::Result {
         write!(f, "{} {} at {}{}",

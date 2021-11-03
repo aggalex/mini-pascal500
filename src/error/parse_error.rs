@@ -1,7 +1,9 @@
 use std::fmt::Formatter;
 use std::ops::Range;
+use lalrpop_util::ParseError;
 use crate::error::{ERROR, Position, PositionBuilder, Throwable};
 use crate::lexer;
+use crate::lexer::Token;
 
 use super::NOTE;
 
@@ -77,5 +79,49 @@ impl<T: std::fmt::Debug + std::fmt::Display + Clone> Throwable for ParsingError<
 
     fn notes(&self) -> Vec<String> {
         vec![]
+    }
+}
+
+impl Into<ParsingError<Token>> for ParseError<usize, Token, ParsingError<Token>> {
+    fn into(self) -> ParsingError<Token> {
+        match self {
+            ParseError::InvalidToken { location } => ParsingError {
+                dropped: vec![],
+                position: location..location,
+                expected: vec![],
+                token: None,
+                variant: ErrorVariant::InvalidToken
+            },
+            ParseError::UnrecognizedEOF {
+                location,
+                expected
+            } => ParsingError {
+                dropped: vec![],
+                position: location..location,
+                expected,
+                token: None,
+                variant: ErrorVariant::UnexpectedEOF
+            },
+            ParseError::UnrecognizedToken {
+                token: (l, token, r),
+                expected
+            } => ParsingError {
+                dropped: vec![],
+                position: l..r,
+                expected,
+                token: Some(token),
+                variant: ErrorVariant::UnrecognizedToken
+            },
+            ParseError::ExtraToken {
+                token: (l, token, r)
+            } => ParsingError {
+                dropped: vec![],
+                position: l..r,
+                expected: vec![],
+                token: Some(token),
+                variant: ErrorVariant::InvalidToken
+            },
+            ParseError::User { error } => error
+        }
     }
 }

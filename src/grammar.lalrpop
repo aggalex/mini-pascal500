@@ -5,8 +5,6 @@ use crate::ast::expression::{
     operators::*
 };
 use crate::ast::program::*;
-use crate::store::*;
-use crate::utils::*;
 use crate::lexer::*;
 use crate::error::*;
 use crate::error::parse_error::ParsingError;
@@ -69,6 +67,8 @@ SepList<Rule, Sep>: Vec<Rule> = {
     <Rule> => vec![<>]
 }
 
+Ranged<Exp>: ExBox = <l: @L> <exp: Exp> <r: @R> => ExBox::new(exp, l..r);
+
 pub Program: () = <Header> <Declarations>;
 
 Header: () = "program" <id: Ident> ";" => program.name = id;
@@ -93,8 +93,8 @@ Type: Type = {
     "record" <f: SepList<Field, ";">> "end" => {
         Type::Record(f.into_iter()
                       .map(|(name, typename)| (name, program.types.get(&typename[..])
-                                                           .unwrap()
-                                                           .clone()))
+                                                                  .unwrap()
+                                                                  .clone()))
                       .collect::<HashMap<String, Type>>())
     },
     "(" <e: SepList<Ident, ",">> ")" => Type::Enum(e),
@@ -137,22 +137,22 @@ ULimit: usize = ILimit =>? {
     }
 };
 
-Expression: Box<dyn Expression> = InExpr<LogicExpr<CompExpr<SumExpr<FactorExpr<TopExpr>>>>>;
+Expression: ExBox = InExpr<LogicExpr<CompExpr<SumExpr<FactorExpr<TopExpr>>>>>;
 
-InExpr<Next>: Box<dyn Expression> = {
-    <l: Next> "in" <r: Next> => Box::new(In{
-        sample: l,
-        set: r
-    }),
+InExpr<Next>: ExBox = {
+    <l: @L> <sample: Next> "in" <set: TopExpr> <r: @R> => ExBox::new(In{
+        sample,
+        set
+    }, l..r),
     Next
 };
 
-CompExpr<Next>: Box<dyn Expression> = {
-    <prev: CompExpr<Next>> <c: Comp> <n: Next> => Box::new(Comparison {
+CompExpr<Next>: ExBox = {
+    <l: @L> <prev: CompExpr<Next>> <c: Comp> <n: Next> <r: @R> => ExBox::new(Comparison {
         left: prev,
         op: c,
         right: n
-    }),
+    }, l..r),
     Next
 }
 
@@ -165,12 +165,12 @@ Comp: CompOp = {
     "=" => CompOp::Eq
 }
 
-SumExpr<Next>: Box<dyn Expression> = {
-    <prev: SumExpr<Next>> <op: AddOp> <n: Next> => Box::new(Sum {
+SumExpr<Next>: ExBox = {
+    <l: @L> <prev: SumExpr<Next>> <op: AddOp> <n: Next> <r: @R> => ExBox::new(Sum {
         left: prev,
         right: n,
         op
-    }),
+    }, l..r),
     Next
 }
 
@@ -179,12 +179,12 @@ AddOp: SumOp = {
     "-" => SumOp::Sub
 }
 
-FactorExpr<Next>: Box<dyn Expression> = {
-    <prev: FactorExpr<Next>> <op: MulOp> <n: Next> => Box::new(Product {
+FactorExpr<Next>: ExBox = {
+    <l: @L> <prev: FactorExpr<Next>> <op: MulOp> <n: Next> <r: @R> => ExBox::new(Product {
         left: prev,
         right: n,
         op
-    }),
+    }, l..r),
     Next
 }
 
@@ -200,32 +200,32 @@ LogicOp: LogicOp = {
     "or" => LogicOp::Or
 }
 
-LogicExpr<Next>: Box<dyn Expression> = {
-    <prev: LogicExpr<Next>> <op: LogicOp> <n: Next> => Box::new(Logic {
+LogicExpr<Next>: ExBox = {
+    <l: @L> <prev: LogicExpr<Next>> <op: LogicOp> <n: Next> <r: @R> => ExBox::new(Logic {
         left: prev,
         right: n,
         op
-    }),
+    }, l..r),
     Next
 }
 
-NotExpr<Next>: Box<dyn Expression> = {
-    "!" <op: NotExpr<Next>> => Box::new(Not(op)),
+NotExpr<Next>: ExBox = {
+    <l: @L> "!" <op: NotExpr<Next>> <r: @R> => ExBox::new(Not(op), l..r),
     Next
 }
 
-TopExpr: Box<dyn Expression> = {
-    Variable => Box::new(<>),
-    Iconst => Box::new(<>),
-    Rconst => Box::new(<>),
-    Cconst => Box::new(<>),
-    Bconst => Box::new(<>),
-    SetExpr => Box::new(<>),
-    CallExpr => Box::new(<>),
-    "(" <expr: Expression> ")" => Box::new(expr)
+TopExpr: ExBox = {
+    Ranged<Variable>,
+    Ranged<Iconst>,
+    Ranged<Rconst>
+    Ranged<Cconst>
+    Ranged<Bconst>
+    Ranged<SetExpr>
+    Ranged<CallExpr>
+    "(" <expr: Expression> ")" => expr
 }
 
-SetExpr: Vec<Box<dyn Expression>> = "[" <out: SepList<Expression, ",">> "]" => out;
+SetExpr: Vec<ExBox> = "[" <out: SepList<Expression, ",">> "]" => out;
 
 CallExpr: Call = <id: Ident> "(" <args: SepList<Expression, ",">> ")" => Call {
     name: id,

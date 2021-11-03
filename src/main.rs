@@ -10,6 +10,7 @@ use lalrpop_util::{lalrpop_mod, ParseError};
 use crate::lexer::{Lexer, Token};
 use crate::ast::program::Program;
 use crate::error::parse_error::ParsingError;
+use crate::error::{PositionBuilder, Printable, Throwable};
 
 pub mod utils;
 pub mod ast;
@@ -21,25 +22,30 @@ lalrpop_mod!(grammar);
 
 fn main() {
     let files = args()
+        .skip(1)
         .map(|filename| File::open(filename))
         .filter(|res| res.is_ok())
         .map(|res| res.unwrap())
-        .map(|mut file| {
+        .filter_map(|mut file| {
             let mut str = String::new();
-            file.read_to_string(&mut str).unwrap();
-            str
+            let read = file.read_to_string(&mut str).unwrap_or_else(|err| {
+                println!("{}", err.static_print());
+                0
+            });
+            if read > 0 { Some(str) } else { None }
         })
-        .map(|src| {
-            let mut program = Program::new();
-            grammar::ProgramParser::new()
-                .parse(&mut program, Lexer::new(&src[..]))
-                .map(|_| program)
+        .map(Program::new)
+        .filter_map(|(program, errors)| {
+            if errors.len() == 0 {
+                Some(program)
+            } else {
+                errors.into_iter()
+                    .map(|err| Printable::new(err, &program.positioner))
+                    .for_each(|printable| println!("{}", printable));
+                None
+            }
         })
-        .collect::<Result<Vec<Program>, ParseError<usize, Token, ParsingError<Token>>>>();
-
-    if let Err(err) = files {
-        panic!("{}", err);
-    }
+        .collect::<Vec<Program>>();
 
     println!("Hello, world!");
 }

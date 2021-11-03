@@ -1,20 +1,23 @@
-use crate::ast::expression::Expression;
+use crate::ast::expression::{ExBox, Expression};
 use crate::ast::program::Program;
 use crate::ast::types::Type;
+use crate::error::semantic_error::SemanticErrorKind;
 
 #[derive(Debug)]
-pub enum VarRef {
+pub enum VarRef<E: Expression = ExBox> {
     Immediate(String),
     Field(Box<VarRef>, String),
-    Index(Box<VarRef>, Vec<Box<dyn Expression>>)
+    Index(Box<VarRef>, Vec<E>)
 }
 
-impl Expression for VarRef {
+impl<E, Exp: Expression<Error = E>> Expression for VarRef<Exp> {
+    type Error = SemanticErrorKind;
+
     fn get_type(&self, _program: &Program) -> Type {
         todo!()
     }
 
-    fn as_number(&self, _program: &Program) -> Result<i64, /*unfoldable*/ &dyn Expression> {
-        Err(self)
+    fn as_number(&self, program: &Program) -> Result<i64, Self::Error> {
+        Err(SemanticErrorKind::InvalidLimit)
     }
 }
